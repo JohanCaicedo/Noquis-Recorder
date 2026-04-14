@@ -14,6 +14,9 @@ public:
     void toggleFullscreen();
     bool isWindowFullscreen() const { return isFullscreen; }
 
+    // Interceptar eventos de ratón
+    void setMouseCallback(cv::MouseCallback onMouse, void* userdata);
+
 private:
     std::string name;
     bool isFullscreen;

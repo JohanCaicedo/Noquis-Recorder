@@ -18,3 +18,7 @@ void AppWindow::toggleFullscreen() {
     cv::setWindowProperty(name, cv::WND_PROP_FULLSCREEN, 
         isFullscreen ? cv::WINDOW_FULLSCREEN : cv::WINDOW_NORMAL);
 }
+
+void AppWindow::setMouseCallback(cv::MouseCallback onMouse, void* userdata) {
+    cv::setMouseCallback(name, onMouse, userdata);
+}

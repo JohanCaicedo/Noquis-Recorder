@@ -8,7 +8,7 @@ CaptureManager::~CaptureManager() {
     release();
 }
 
-bool CaptureManager::initialize(int deviceIndex, int width, int height) {
+bool CaptureManager::initialize(int deviceIndex, int width, int height, int fps) {
     // Ahora que recompilamos OpenCV con MSMF, esto funcionara perfecto.
     // Media Foundation respeta el FOURCC y no necesita Popups.
     cap.open(deviceIndex, cv::CAP_MSMF);
@@ -26,7 +26,7 @@ bool CaptureManager::initialize(int deviceIndex, int width, int height) {
     cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
     cap.set(cv::CAP_PROP_FRAME_WIDTH, width);
     cap.set(cv::CAP_PROP_FRAME_HEIGHT, height);
-    cap.set(cv::CAP_PROP_FPS, 60);
+    cap.set(cv::CAP_PROP_FPS, fps);
 
     // 4. ZERO-BUFFER: Forzar buffer a 1 frame.
     //    Evita que OpenCV encole frames antiguos (causa de lag).

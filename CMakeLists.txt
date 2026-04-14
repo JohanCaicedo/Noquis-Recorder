@@ -43,6 +43,7 @@ set(SOURCES
     src/GPUUpscaler.cpp
     src/GPUDenoiser.cpp
     src/AudioManager.cpp
+    src/ConfigManager.cpp
     # Proxy files del VFX SDK (carga dinamica de DLLs)
     "${VFXSDK_ROOT}/nvvfx/src/nvVideoEffectsProxy.cpp"
     "${VFXSDK_ROOT}/nvvfx/src/nvCVImageProxy.cpp"

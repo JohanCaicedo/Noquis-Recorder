@@ -1,23 +1,55 @@
 #include "Application.hpp"
 #include <iostream>
 
+// Instancia global para el callback del raton
+Application* g_appInstance = nullptr;
+
+void Application::onMouse(int event, int x, int y, int flags, void* userdata) {
+    if (g_appInstance && event == cv::EVENT_LBUTTONDOWN) {
+        g_appInstance->handleMouse(event, x, y, flags);
+    }
+}
+
 Application::Application(int deviceIndex) 
-    : deviceIndex(deviceIndex), isRunning(false), enableAI(false), enableDenoise(false), showMenu(true), appWindow("AI-Link Capture") {
+    : isRunning(false), enableAA(false), enableAI(false), enableDenoise(false), showMenu(true), appWindow("AI-Link Capture"), pendingCaptureRestart(false) {
+    
     devices = CaptureManager::getAvailableDevices();
+
+    // Cargar config si existe, sino usar valores default de AppConfig y el deviceIndex por consola
+    AppConfig cfg = ConfigManager::loadConfig("config.ini");
+    if (cfg.deviceIndex != -1) {
+        // Usar la config del archivo local
+        this->deviceIndex = cfg.deviceIndex;
+        this->capWidth = cfg.capWidth;
+        this->capHeight = cfg.capHeight;
+        this->capFps = cfg.capFps;
+        this->srWidth = cfg.srWidth;
+        this->srHeight = cfg.srHeight;
+        this->denoiseStrength = cfg.denoiseStrength;
+        this->enableDenoise = cfg.enableDenoise;
+        this->enableAI = cfg.enableAI;
+        this->enableAA = cfg.enableAA;
+    } else {
+        this->deviceIndex = deviceIndex;
+    }
+
+    g_appInstance = this;
 }
 
 Application::~Application() {
     captureManager.release();
+    g_appInstance = nullptr;
 }
 
 void Application::run() {
     isRunning = true;
     cv::Mat frame, processedFrame;
 
-    // Intentamos conectar el dispositivo SOLO si hay uno pre-seleccionado
+    appWindow.setMouseCallback(Application::onMouse, nullptr);
+
     bool captureActive = false;
     if (deviceIndex >= 0 && deviceIndex < (int)devices.size()) {
-        captureActive = captureManager.initialize(devices[deviceIndex].hwIndex, capWidth, capHeight);
+        captureActive = captureManager.initialize(devices[deviceIndex].hwIndex, capWidth, capHeight, capFps);
         if (captureActive) {
             audioManager.start();
         }
@@ -26,191 +58,252 @@ void Application::run() {
     std::cout << "Controles: [ESC] Zen Mode | [M] Menu | [F] IA | [R] Input Res | [S] Output Res | [Q] Salir" << std::endl;
 
     while (isRunning) {
+        if (pendingCaptureRestart) {
+            std::cout << "Reiniciando captura de video..." << std::endl;
+            captureManager.release();
+            audioManager.stop();
+            bool oldAI = enableAI;
+            bool oldDenoise = enableDenoise;
+            enableAI = false;
+            enableDenoise = false;
+            videoProcessor.releaseUpscaler();
+            videoProcessor.releaseDenoiser();
+            if (deviceIndex >= 0 && deviceIndex < (int)devices.size()) {
+                captureActive = captureManager.initialize(devices[deviceIndex].hwIndex, capWidth, capHeight, capFps);
+                if (captureActive) {
+                    audioManager.start();
+                    enableAI = oldAI;
+                    enableDenoise = oldDenoise;
+                    // Reactivar modelos si estaban prendidos antes (esto forzara que se re-inicien en el frame loop o los desactivamos definitivamente para que el usuario los prenda)
+                    // Por simplicidad de manejo de memoria, mejor los dejo en false para que el usuario de click de nuevo o el primer frame los cargue via logic si hacemos auto-hot load. 
+                    // Ya que la logica de inicializacion esta en 'handleInput/Mouse'. Para evitar crash, mejor en false.
+                    enableAI = false; 
+                    enableDenoise = false;
+                }
+            }
+            pendingCaptureRestart = false;
+        }
+
         if (captureActive) {
-            // Ingesta y Decodificación
             if (!captureManager.getNextFrame(frame)) {
-                // Si el frame falla, dibujamos negro en vez de crashear
                 frame = cv::Mat(1080, 1920, CV_8UC3, cv::Scalar(0, 0, 0));
             }
         } else {
-            // Sin captura activa: pantalla negra con instrucciones
             frame = cv::Mat(720, 1280, CV_8UC3, cv::Scalar(20, 20, 20));
-            showMenu = true; // Forzar menú visible
+            showMenu = true;
         }
 
-        // Post-proceso: Denoise y/o Super Resolution
         videoProcessor.processFrame(frame, processedFrame, enableAI && captureActive, enableDenoise && captureActive);
 
-        // HUD OSD - Menu de selección
         if (showMenu) {
             drawMenu(processedFrame);
         }
 
-        // Letterboxing manual para mantener 16:9 en pantallas 16:10 si estamos en pantalla completa
         cv::Mat displayFrame = processedFrame;
+        
+        // Capa de Anti-Aliasing (Lanczos4) independiente
+        if (enableAA) {
+            if (displayFrame.cols != srWidth || displayFrame.rows != srHeight) {
+                cv::Mat aaFrame;
+                cv::resize(displayFrame, aaFrame, cv::Size(srWidth, srHeight), 0, 0, cv::INTER_LANCZOS4);
+                displayFrame = aaFrame;
+            }
+        }
+
         if (appWindow.isWindowFullscreen()) {
             int w = displayFrame.cols;
             int h = displayFrame.rows;
-            int targetH = (w * 10) / 16; // Calcular altura para ratio 16:10
+            int targetH = (w * 10) / 16;
             if (targetH > h) {
                 int pad = (targetH - h) / 2;
                 cv::copyMakeBorder(displayFrame, displayFrame, pad, pad, 0, 0, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
             }
         }
 
-        // Renderizado
         appWindow.show(displayFrame);
-
-        // Input - pasamos referencia a captureActive para poder actualizarla
         handleInput(captureActive);
     }
 
     std::cout << "Recursos liberados. Programa terminado." << std::endl;
 }
 
-
 void Application::handleInput(bool& captureActive) {
-    // Lectura no bloqueante de 1ms
     char key = (char)cv::waitKey(1); 
     
-    if (key == 27) { // Tecla ESC
-        appWindow.toggleFullscreen();
-    }
-    else if (key == 'm' || key == 'M') { // Menu de camaras
-        showMenu = !showMenu;
-    }
-    else if (key == 'd' || key == 'D') { // Tecla D - Toggle Denoise
-        if (captureActive) {
-            if (!enableDenoise) {
-                bool denoiseReady = videoProcessor.isDenoiserReady();
-                if (!denoiseReady) {
-                    std::cout << "Inicializando Denoise..." << std::endl;
-                    denoiseReady = videoProcessor.initDenoiser(capWidth, capHeight, 0.0f);
-                }
+    if (key == 27) { appWindow.toggleFullscreen(); }
+    else if (key == 'm' || key == 'M') { showMenu = !showMenu; }
+    else if (key == 'q' || key == 'Q') { isRunning = false; }
+}
 
-                if (!denoiseReady) {
-                    enableDenoise = false;
-                    std::cout << "Denoise: ERROR (no se pudo inicializar el modelo IA)" << std::endl;
-                    return;
-                }
-            }
+void Application::handleMouse(int event, int x, int y, int flags) {
+    if (!showMenu) return;
+    cv::Point pt(x, y);
 
-            enableDenoise = !enableDenoise;
-            std::cout << "Denoise: " << (enableDenoise ? "ON (Reduccion de Ruido IA)" : "OFF") << std::endl;
+    for (size_t i = 0; i < btnsDevices.size(); i++) {
+        if (btnsDevices[i].contains(pt)) {
+            bool dummy = true; // pasamos una ref temporal
+            pendingCaptureRestart = true;
+            deviceIndex = (int)i;
         }
     }
-    else if (key == 'f' || key == 'F') { // Tecla F - Toggle Super Resolution
-        if (captureActive) {
-            if (!enableAI) {
-                bool upscalerReady = videoProcessor.isUpscalerReady();
-                if (!upscalerReady) {
-                    // Para señal MJPEG de capturadora conviene VSR_Ultra; HighBitrate
-                    // suele asumir una fuente más limpia y deja más artefacto visible.
-                    std::cout << "Inicializando Super Resolution..." << std::endl;
-                    upscalerReady = videoProcessor.initUpscaler(capWidth, capHeight, srWidth, srHeight, GPUUpscaler::kModeMjpegDefault);
-                }
-
-                if (!upscalerReady) {
-                    enableAI = false;
-                    std::cout << "IA: ERROR (no se pudo inicializar Super Resolution)" << std::endl;
-                    return;
-                }
-            }
-
-            enableAI = !enableAI;
-            std::cout << "IA: " << (enableAI ? "ON (Super Resolution)" : "OFF (Pass-through)") << std::endl;
-        }
-    }
-    else if (key == 'r' || key == 'R') { // Select Input Resolution
+    
+    if (btnResToggle.contains(pt)) {
         capWidth = (capWidth == 1920) ? 1280 : 1920;
         capHeight = (capHeight == 1080) ? 720 : 1080;
-        if (captureActive) {
-            std::cout << "Cambiando captura a " << capWidth << "x" << capHeight << "..." << std::endl;
-            captureManager.release();
-            audioManager.stop();
+        pendingCaptureRestart = true;
+    }
+    
+    if (btnFpsToggle.contains(pt)) {
+        capFps = (capFps == 60) ? 30 : 60;
+        pendingCaptureRestart = true;
+    }
+
+    if (btnAIToggle.contains(pt)) {
+        if (!enableAI) {
+            bool ready = videoProcessor.isUpscalerReady();
+            if (!ready) ready = videoProcessor.initUpscaler(capWidth, capHeight, srWidth, srHeight, GPUUpscaler::kModeMjpegDefault);
+            if (ready) enableAI = true;
+        } else {
             enableAI = false;
-            enableDenoise = false;
-            videoProcessor.releaseUpscaler();
-            videoProcessor.releaseDenoiser();
-            captureActive = captureManager.initialize(devices[deviceIndex].hwIndex, capWidth, capHeight);
-            if (captureActive) audioManager.start();
         }
     }
-    else if (key == 's' || key == 'S') { // Select Output Resolution (DLSS Target)
-        if (srWidth == 2560) { srWidth = 1920; srHeight = 1080; } // 1440p -> 1080p
-        else if (srWidth == 1920) { srWidth = 3840; srHeight = 2160; } // 1080p -> 4K
-        else { srWidth = 2560; srHeight = 1440; } // 4K -> 1440p
+
+    if (btnAAToggle.contains(pt)) {
+        enableAA = !enableAA;
+    }
+
+    if (btnOutToggle.contains(pt)) {
+        if (srWidth == 2560) { srWidth = 1920; srHeight = 1080; } 
+        else if (srWidth == 1920) { srWidth = 3840; srHeight = 2160; } 
+        else { srWidth = 2560; srHeight = 1440; }
         
-        enableAI = false;
-        enableDenoise = false;
+        enableAI = false; // reset ai
         videoProcessor.releaseUpscaler();
-        videoProcessor.releaseDenoiser();
-        std::cout << "Objetivo IA seleccionado: " << srWidth << "x" << srHeight << std::endl;
     }
-    else if (key == 'q' || key == 'Q') { // Cierre Seguro
-        std::cout << "Iniciando cierre seguro..." << std::endl;
-        isRunning = false;
-    }
-    else if (key >= '0' && key <= '9') { // Selección de cámara (0-9)
-        if (showMenu) {
-            int newIndex = key - '0';
-            switchDevice(newIndex, captureActive);
-            showMenu = false; // Cerrar menu al seleccionar
+
+    if (btnDenoiseToggle.contains(pt)) {
+        if (!enableDenoise) {
+            bool ready = videoProcessor.isDenoiserReady();
+            if (!ready) ready = videoProcessor.initDenoiser(capWidth, capHeight, denoiseStrength);
+            if (ready) enableDenoise = true;
+        } else {
+            enableDenoise = false;
         }
+    }
+
+    if (btnDenoiseStrength.contains(pt)) {
+        if (denoiseStrength == 0.0f) denoiseStrength = 0.5f;
+        else if (denoiseStrength == 0.5f) denoiseStrength = 1.0f;
+        else denoiseStrength = 0.0f;
+        
+        enableDenoise = false; // reset denoise
+        videoProcessor.releaseDenoiser();
+    }
+
+    if (btnSave.contains(pt)) {
+        AppConfig cfg;
+        cfg.deviceIndex = deviceIndex;
+        cfg.capWidth = capWidth;
+        cfg.capHeight = capHeight;
+        cfg.capFps = capFps;
+        cfg.srWidth = srWidth;
+        cfg.srHeight = srHeight;
+        cfg.denoiseStrength = denoiseStrength;
+        cfg.enableDenoise = enableDenoise;
+        cfg.enableAI = enableAI;
+        cfg.enableAA = enableAA;
+        ConfigManager::saveConfig("config.ini", cfg);
+        std::cout << "Configuracion guardada en config.ini." << std::endl;
     }
 }
 
 void Application::switchDevice(int menuIndex, bool& captureActive) {
     if (menuIndex >= 0 && menuIndex < (int)devices.size()) {
         if (menuIndex != deviceIndex || !captureActive) {
-            int hwIdx = devices[menuIndex].hwIndex;
-            std::cout << "Conectando dispositivo HW[" << hwIdx << "]: " << devices[menuIndex].name << std::endl;
-            captureManager.release();
-            audioManager.stop();
-            enableAI = false;
-            enableDenoise = false;
             deviceIndex = menuIndex;
-            videoProcessor.releaseUpscaler();
-            videoProcessor.releaseDenoiser();
-            captureActive = captureManager.initialize(hwIdx, capWidth, capHeight);
-            if (captureActive) {
-                audioManager.start();
-                std::cout << "Captura activa. [F] Activar Super Resolution | [ESC] Zen | [M] Menu | [Q] Salir" << std::endl;
-            }
+            pendingCaptureRestart = true;
         }
     }
 }
 
 void Application::drawMenu(cv::Mat& frame) {
-    // Dibujar un cuadro semitransparente oscuro
     cv::Mat overlay;
     frame.copyTo(overlay);
-    int menuHeight = 80 + 40 * devices.size();
-    cv::rectangle(overlay, cv::Point(20, 20), cv::Point(600, menuHeight), cv::Scalar(0, 0, 0), cv::FILLED);
-    cv::addWeighted(overlay, 0.7, frame, 0.3, 0, frame);
+    
+    // Panel central grande
+    int w = 700;
+    int h = 450;
+    int rx = 40;
+    int ry = 40;
+    cv::rectangle(overlay, cv::Rect(rx, ry, w, h), cv::Scalar(15, 15, 15), cv::FILLED);
+    cv::addWeighted(overlay, 0.85, frame, 0.15, 0, frame);
+    cv::rectangle(frame, cv::Rect(rx, ry, w, h), cv::Scalar(200, 200, 200), 2); // Borde
 
-    // Titulo del menu
-    cv::putText(frame, "Selecciona una capturadora (Teclas 0-9):", cv::Point(40, 50), 
-                cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2);
+    cv::putText(frame, "--- AI-LINK CAPTURE : SETTINGS (Clickable) ---", cv::Point(rx + 20, ry + 40), 
+                cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255, 255, 255), 2);
 
-    if (devices.empty()) {
-        cv::putText(frame, "No se encontraron dispositivos.", cv::Point(40, 90), 
-                    cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0, 255), 2);
-        return;
-    }
+    int textX = rx + 30;
+    int y = ry + 80;
 
-    // Listar las capturadoras
+    // Devices
+    btnsDevices.clear();
+    cv::putText(frame, "DISPOSITIVO DE VIDEO:", cv::Point(textX, y), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(200, 200, 200), 1);
     for (size_t i = 0; i < devices.size(); i++) {
-        cv::Scalar color = ((int)i == deviceIndex) ? cv::Scalar(0, 255, 0) : cv::Scalar(200, 200, 200);
-        std::string text = "[" + std::to_string(i) + "] " + devices[i].name + (((int)i == deviceIndex) ? " (Activa)" : "");
-        cv::putText(frame, text, cv::Point(40, 90 + (int)i * 40), 
-                    cv::FONT_HERSHEY_SIMPLEX, 0.6, color, 2);
+        std::string label = devices[i].name;
+        cv::Scalar color = ((int)i == deviceIndex) ? cv::Scalar(0, 255, 0) : cv::Scalar(100, 100, 100);
+        cv::Rect btnRect(textX + 220, y - 20, 300, 30);
+        btnsDevices.push_back(btnRect);
+        cv::rectangle(frame, btnRect, color, ((int)i == deviceIndex) ? cv::FILLED : 1);
+        cv::putText(frame, label, cv::Point(btnRect.x + 10, btnRect.y + 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, ((int)i == deviceIndex) ? cv::Scalar(0,0,0) : cv::Scalar(255,255,255), 1);
+        y += 40;
     }
+    y += 20;
 
-    int baseLine = 90 + devices.size() * 40 + 20;
-    cv::putText(frame, "---------------------------------", cv::Point(40, baseLine), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2);
-    cv::putText(frame, "[R] Resolucion USB: " + std::to_string(capWidth) + "x" + std::to_string(capHeight) + " (R para cambiar)", cv::Point(40, baseLine + 30), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 255), 2);
-    cv::putText(frame, "[D] Denoise IA: " + std::string(enableDenoise ? "ON" : "OFF"), cv::Point(40, baseLine + 60), cv::FONT_HERSHEY_SIMPLEX, 0.6, enableDenoise ? cv::Scalar(0, 200, 255) : cv::Scalar(180, 180, 180), 2);
-    cv::putText(frame, "[F] Super Res IA: " + std::string(enableAI ? "ON (" + std::to_string(srWidth) + "x" + std::to_string(srHeight) + ")" : "OFF"), cv::Point(40, baseLine + 90), cv::FONT_HERSHEY_SIMPLEX, 0.6, enableAI ? cv::Scalar(0, 255, 100) : cv::Scalar(180, 180, 180), 2);
-    cv::putText(frame, "[S] Objetivo IA: " + std::to_string(srWidth) + "x" + std::to_string(srHeight) + " (S para cambiar)", cv::Point(40, baseLine + 120), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 165, 0), 2);
+    // Res / FPS
+    cv::putText(frame, "ENTRADA (Hardware):", cv::Point(textX, y), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(200, 200, 200), 1);
+    btnResToggle = cv::Rect(textX + 220, y - 20, 150, 30);
+    cv::rectangle(frame, btnResToggle, cv::Scalar(255, 255, 100), 1);
+    cv::putText(frame, std::to_string(capWidth) + "x" + std::to_string(capHeight), cv::Point(btnResToggle.x + 20, btnResToggle.y + 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 100), 1);
+    
+    btnFpsToggle = cv::Rect(textX + 380, y - 20, 100, 30);
+    cv::rectangle(frame, btnFpsToggle, cv::Scalar(255, 150, 150), 1);
+    cv::putText(frame, std::to_string(capFps) + " FPS", cv::Point(btnFpsToggle.x + 20, btnFpsToggle.y + 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 150, 150), 1);
+    y += 50;
+
+    // Denoise
+    cv::putText(frame, "FILTRO DENOISE IA:", cv::Point(textX, y), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(200, 200, 200), 1);
+    btnDenoiseToggle = cv::Rect(textX + 220, y - 20, 100, 30);
+    cv::rectangle(frame, btnDenoiseToggle, enableDenoise ? cv::Scalar(0, 255, 0) : cv::Scalar(100, 100, 100), enableDenoise ? cv::FILLED : 1);
+    cv::putText(frame, enableDenoise ? "ENCENDIDO" : "APAGADO", cv::Point(btnDenoiseToggle.x + 10, btnDenoiseToggle.y + 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, enableDenoise ? cv::Scalar(0,0,0) : cv::Scalar(255,255,255), 1);
+
+    btnDenoiseStrength = cv::Rect(textX + 330, y - 20, 150, 30);
+    cv::rectangle(frame, btnDenoiseStrength, cv::Scalar(200, 200, 200), 1);
+    std::string strStr = "Fuerza: " + std::to_string(denoiseStrength).substr(0,3);
+    cv::putText(frame, strStr, cv::Point(btnDenoiseStrength.x + 20, btnDenoiseStrength.y + 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(200, 200, 200), 1);
+    y += 50;
+
+    // AI Super Res Target
+    cv::putText(frame, "NVIDIA SUPER RES:", cv::Point(textX, y), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(200, 200, 200), 1);
+    btnAIToggle = cv::Rect(textX + 220, y - 20, 100, 30);
+    cv::rectangle(frame, btnAIToggle, enableAI ? cv::Scalar(0, 255, 0) : cv::Scalar(100, 100, 100), enableAI ? cv::FILLED : 1);
+    cv::putText(frame, enableAI ? "ENCENDIDO" : "APAGADO", cv::Point(btnAIToggle.x + 10, btnAIToggle.y + 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, enableAI ? cv::Scalar(0,0,0) : cv::Scalar(255,255,255), 1);
+
+    cv::putText(frame, "AA LANCZOS4:", cv::Point(textX + 340, y), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(200, 200, 200), 1);
+    btnAAToggle = cv::Rect(textX + 480, y - 20, 100, 30);
+    cv::rectangle(frame, btnAAToggle, enableAA ? cv::Scalar(0, 255, 0) : cv::Scalar(100, 100, 100), enableAA ? cv::FILLED : 1);
+    cv::putText(frame, enableAA ? "ENCENDIDO" : "APAGADO", cv::Point(btnAAToggle.x + 10, btnAAToggle.y + 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, enableAA ? cv::Scalar(0,0,0) : cv::Scalar(255,255,255), 1);
+    y += 50;
+
+    cv::putText(frame, "TARGET ALTA RES:", cv::Point(textX, y), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(200, 200, 200), 1);
+    btnOutToggle = cv::Rect(textX + 220, y - 20, 150, 30);
+    cv::rectangle(frame, btnOutToggle, cv::Scalar(100, 255, 255), 1);
+    cv::putText(frame, "Target: " + std::to_string(srWidth)+"x"+std::to_string(srHeight), cv::Point(btnOutToggle.x + 10, btnOutToggle.y + 20), cv::FONT_HERSHEY_SIMPLEX, 0.45, cv::Scalar(100, 255, 255), 1);
+    y += 60;
+
+    // Guarda info
+    btnSave = cv::Rect(textX, y - 20, 200, 40);
+    cv::rectangle(frame, btnSave, cv::Scalar(0, 150, 255), cv::FILLED);
+    cv::putText(frame, "GUARDAR CONFIG", cv::Point(btnSave.x + 30, btnSave.y + 25), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0, 0), 2);
+    
+    cv::putText(frame, "(Presiona [M] para cerrar este menu)", cv::Point(textX + 220, y), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(150, 150, 150), 1);
 }

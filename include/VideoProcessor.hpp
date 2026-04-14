@@ -9,7 +9,7 @@ public:
     ~VideoProcessor();
 
     // Inicializa el upscaler GPU
-    bool initUpscaler(int srcW, int srcH, int dstW, int dstH, int quality = GPUUpscaler::kModeHighBitrateUltra);
+    bool initUpscaler(int srcW, int srcH, int dstW, int dstH, int quality = GPUUpscaler::kModeMjpegDefault);
 
     // Inicializa el denoiser GPU
     bool initDenoiser(int width, int height, float strength = 0.0f);

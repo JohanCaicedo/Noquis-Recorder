@@ -104,9 +104,10 @@ void Application::handleInput(bool& captureActive) {
             if (!enableAI) {
                 bool upscalerReady = videoProcessor.isUpscalerReady();
                 if (!upscalerReady) {
-                    // Primera vez: inicializar el upscaler 1080p -> 4K con sesgo a calidad visual.
+                    // Para señal MJPEG de capturadora conviene VSR_Ultra; HighBitrate
+                    // suele asumir una fuente más limpia y deja más artefacto visible.
                     std::cout << "Inicializando Super Resolution..." << std::endl;
-                    upscalerReady = videoProcessor.initUpscaler(capWidth, capHeight, srWidth, srHeight, GPUUpscaler::kModeHighBitrateUltra);
+                    upscalerReady = videoProcessor.initUpscaler(capWidth, capHeight, srWidth, srHeight, GPUUpscaler::kModeMjpegDefault);
                 }
 
                 if (!upscalerReady) {

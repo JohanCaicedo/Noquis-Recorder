@@ -10,6 +10,7 @@ class GPUUpscaler {
 public:
     static constexpr int kModeVsrUltra = 4;
     static constexpr int kModeHighBitrateUltra = 19;
+    static constexpr int kModeMjpegDefault = kModeVsrUltra;
 
     GPUUpscaler();
     ~GPUUpscaler();
@@ -18,7 +19,7 @@ public:
     // srcWidth/srcHeight: resolucion de entrada (ej: 1280x720)
     // dstWidth/dstHeight: resolucion de salida (ej: 2560x1440)
     // qualityMode: 0-4=VSR, 16-19=HighBitrate (mejor para video limpio / gaming)
-    bool initialize(int srcWidth, int srcHeight, int dstWidth, int dstHeight, int qualityMode = kModeHighBitrateUltra);
+    bool initialize(int srcWidth, int srcHeight, int dstWidth, int dstHeight, int qualityMode = kModeMjpegDefault);
 
     // Escala un frame de entrada y devuelve el frame escalado
     bool upscale(const cv::Mat& input, cv::Mat& output);

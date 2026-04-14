@@ -1,4 +1,5 @@
 #include "CaptureManager.hpp"
+#include <opencv2/core/utils/logger.hpp>
 #include <iostream>
 
 CaptureManager::CaptureManager() {}
@@ -60,6 +61,9 @@ std::vector<DeviceInfo> CaptureManager::getAvailableDevices() {
     std::vector<DeviceInfo> devices;
 
     std::cout << "Escaneando dispositivos de video..." << std::endl;
+
+    const auto previousLogLevel = cv::utils::logging::getLogLevel();
+    cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_ERROR);
     
     // Probamos indices 0-4 con MSMF
     for (int i = 0; i < 5; i++) {
@@ -72,8 +76,9 @@ std::vector<DeviceInfo> CaptureManager::getAvailableDevices() {
             testCap.release();
         }
     }
+
+    cv::utils::logging::setLogLevel(previousLogLevel);
     
     std::cout << "Encontrados " << devices.size() << " dispositivo(s)." << std::endl;
     return devices;
 }
-

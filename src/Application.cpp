@@ -81,21 +81,41 @@ void Application::handleInput(bool& captureActive) {
     }
     else if (key == 'd' || key == 'D') { // Tecla D - Toggle Denoise
         if (captureActive) {
-            if (!enableDenoise && !videoProcessor.isDenoiserReady()) {
-                std::cout << "Inicializando Denoise..." << std::endl;
-                videoProcessor.initDenoiser(capWidth, capHeight, 1.0f);
+            if (!enableDenoise) {
+                bool denoiseReady = videoProcessor.isDenoiserReady();
+                if (!denoiseReady) {
+                    std::cout << "Inicializando Denoise..." << std::endl;
+                    denoiseReady = videoProcessor.initDenoiser(capWidth, capHeight, 1.0f);
+                }
+
+                if (!denoiseReady) {
+                    enableDenoise = false;
+                    std::cout << "Denoise: ERROR (no se pudo inicializar el modelo IA)" << std::endl;
+                    return;
+                }
             }
+
             enableDenoise = !enableDenoise;
             std::cout << "Denoise: " << (enableDenoise ? "ON (Reduccion de Ruido IA)" : "OFF") << std::endl;
         }
     }
     else if (key == 'f' || key == 'F') { // Tecla F - Toggle Super Resolution
         if (captureActive) {
-            if (!enableAI && !videoProcessor.isUpscalerReady()) {
-                // Primera vez: inicializar el upscaler 1080p -> 2K
-                std::cout << "Inicializando Super Resolution..." << std::endl;
-                videoProcessor.initUpscaler(capWidth, capHeight, srWidth, srHeight, 1);
+            if (!enableAI) {
+                bool upscalerReady = videoProcessor.isUpscalerReady();
+                if (!upscalerReady) {
+                    // Primera vez: inicializar el upscaler 1080p -> 2K
+                    std::cout << "Inicializando Super Resolution..." << std::endl;
+                    upscalerReady = videoProcessor.initUpscaler(capWidth, capHeight, srWidth, srHeight, 1);
+                }
+
+                if (!upscalerReady) {
+                    enableAI = false;
+                    std::cout << "IA: ERROR (no se pudo inicializar Super Resolution)" << std::endl;
+                    return;
+                }
             }
+
             enableAI = !enableAI;
             std::cout << "IA: " << (enableAI ? "ON (Super Resolution)" : "OFF (Pass-through)") << std::endl;
         }

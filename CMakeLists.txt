@@ -21,7 +21,7 @@ find_package(CUDAToolkit REQUIRED)
 # ============================================================
 # NVIDIA VFX SDK (Video Effects / Super Resolution)
 # ============================================================
-set(VFXSDK_ROOT "C:/Program Files/NVIDIA Corporation/NVIDIA Video Effects")
+set(VFXSDK_ROOT "${CMAKE_SOURCE_DIR}/NVIDIA Video Effects")
 
 # Carpetas de cabeceras
 include_directories(include)

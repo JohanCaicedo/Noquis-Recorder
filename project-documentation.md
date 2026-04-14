@@ -1,7 +1,7 @@
 # Especificación Técnica: AI-Link Capture
 
 ## 1. Objetivo del Proyecto
-Desarrollar una aplicación de visualización de video de latencia ultra baja para consolas, diseñada para transformar una señal comprimida de baja calidad (USB 2.0) en una imagen de alta fidelidad mediante reconstrucción por hardware.
+Desarrollar una aplicación de visualización de video de latencia ultra baja para consolas, diseñada para transformar una señal comprimida de baja calidad (USB 2.0) en una imagen de alta fidelidad mediante reconstrucción por inteligencia arificial NVIDIA.
 
 ## 2. Tecnologías y Herramientas
 * **Lenguaje:** C++17 (Optimización de memoria y velocidad nativa).
@@ -43,3 +43,9 @@ El escalado con IA ocurre en la **Etapa de Post-procesamiento**. Este es el fluj
 2.  Implementación de la captura estable a 60 FPS.
 3.  Desarrollo del sistema de ventana "Borderless Fullscreen".
 4.  Integración del filtro de reconstrucción acelerado por GPU.
+
+# 1. Configurar el proyecto (detecta los cambios en CMakeLists y la ruta del SDK)
+cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=g:\dev\vcpkg\scripts\buildsystems\vcpkg.cmake
+
+# 2. Compilar la aplicación en modo Release
+cmake --build build --config Release

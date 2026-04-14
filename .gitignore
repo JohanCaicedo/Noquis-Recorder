@@ -1,0 +1,9 @@
+build/
+VideoFX/
+vcpkg_installed/
+.vs/
+*.user
+*.obj
+*.exe
+*.dll
+*.lib

@@ -1,0 +1,79 @@
+#include "CaptureManager.hpp"
+#include <iostream>
+
+CaptureManager::CaptureManager() {}
+
+CaptureManager::~CaptureManager() {
+    release();
+}
+
+bool CaptureManager::initialize(int deviceIndex, int width, int height) {
+    // Ahora que recompilamos OpenCV con MSMF, esto funcionara perfecto.
+    // Media Foundation respeta el FOURCC y no necesita Popups.
+    cap.open(deviceIndex, cv::CAP_MSMF);
+    
+    if (!cap.isOpened()) {
+        std::cerr << "Error: No se pudo abrir la capturadora USB en el indice " << deviceIndex << "." << std::endl;
+        return false;
+    }
+
+    // ============================================================
+    // CONFIGURACION OPTIMIZADA PARA USB 2.0
+    // ============================================================
+    
+    // Forzamos MJPEG, ahora MSMF lo respetará automáticamente
+    cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
+    cap.set(cv::CAP_PROP_FRAME_WIDTH, width);
+    cap.set(cv::CAP_PROP_FRAME_HEIGHT, height);
+    cap.set(cv::CAP_PROP_FPS, 60);
+
+    // 4. ZERO-BUFFER: Forzar buffer a 1 frame.
+    //    Evita que OpenCV encole frames antiguos (causa de lag).
+    cap.set(cv::CAP_PROP_BUFFERSIZE, 1);
+
+    // Verificar la configuracion real del hardware
+    double realWidth = cap.get(cv::CAP_PROP_FRAME_WIDTH);
+    double realHeight = cap.get(cv::CAP_PROP_FRAME_HEIGHT);
+    double realFPS = cap.get(cv::CAP_PROP_FPS);
+    std::cout << "Dispositivo " << deviceIndex 
+              << " configurado: " << realWidth << "x" << realHeight 
+              << " @ " << realFPS << " FPS (MJPEG)" << std::endl;
+
+    return true;
+}
+
+bool CaptureManager::getNextFrame(cv::Mat& outFrame) {
+    // grab() + retrieve() es mas rapido que >> porque grab()
+    // no decodifica hasta que retrieve() lo necesite.
+    // Esto reduce la latencia en ~1-2ms por frame.
+    if (!cap.grab()) return false;
+    return cap.retrieve(outFrame);
+}
+
+void CaptureManager::release() {
+    if (cap.isOpened()) {
+        cap.release();
+    }
+}
+
+std::vector<DeviceInfo> CaptureManager::getAvailableDevices() {
+    std::vector<DeviceInfo> devices;
+
+    std::cout << "Escaneando dispositivos de video..." << std::endl;
+    
+    // Probamos indices 0-4 con MSMF
+    for (int i = 0; i < 5; i++) {
+        cv::VideoCapture testCap;
+        if (testCap.open(i, cv::CAP_MSMF)) {
+            DeviceInfo info;
+            info.hwIndex = i;
+            info.name = "Dispositivo de Video [" + std::to_string(i) + "]";
+            devices.push_back(info);
+            testCap.release();
+        }
+    }
+    
+    std::cout << "Encontrados " << devices.size() << " dispositivo(s)." << std::endl;
+    return devices;
+}
+

@@ -18,6 +18,7 @@ private:
     int deviceIndex;
     bool isRunning;
     bool enableAI;
+    bool enableDenoise; // Filtro de reduccion de ruido IA
     bool showMenu; // Estado UI
 
     int capWidth = 1920;

@@ -15,16 +15,21 @@ endif()
 # Buscar OpenCV (vcpkg lo proveerá)
 find_package(OpenCV REQUIRED)
 
+# CUDA Toolkit (necesario para cudaMalloc/cudaFree del State Variable del Denoiser)
+find_package(CUDAToolkit REQUIRED)
+
 # ============================================================
 # NVIDIA VFX SDK (Video Effects / Super Resolution)
 # ============================================================
-set(VFXSDK_ROOT "${CMAKE_SOURCE_DIR}/VideoFX")
+set(VFXSDK_ROOT "C:/Program Files/NVIDIA Corporation/NVIDIA Video Effects")
 
 # Carpetas de cabeceras
 include_directories(include)
 include_directories("${VFXSDK_ROOT}/nvvfx/include")
 # Feature headers (VideoSuperRes)
 include_directories("${VFXSDK_ROOT}/features/nvvfxvideosuperres/include")
+# Feature headers (Denoising)
+include_directories("${VFXSDK_ROOT}/features/nvvfxdenoising/include")
 # Utilidades del SDK (nvCVOpenCV.h)
 include_directories("${CMAKE_SOURCE_DIR}/../VFX-SDK-Samples/utils")
 
@@ -36,6 +41,7 @@ set(SOURCES
     src/AppWindow.cpp
     src/Application.cpp
     src/GPUUpscaler.cpp
+    src/GPUDenoiser.cpp
     src/AudioManager.cpp
     # Proxy files del VFX SDK (carga dinamica de DLLs)
     "${VFXSDK_ROOT}/nvvfx/src/nvVideoEffectsProxy.cpp"
@@ -47,6 +53,9 @@ add_executable(AILinkCapture ${SOURCES})
 
 # Conectar OpenCV
 target_link_libraries(AILinkCapture PRIVATE ${OpenCV_LIBS})
+
+# Conectar CUDA Runtime (para cudaMalloc/cudaFree en GPUDenoiser)
+target_link_libraries(AILinkCapture PRIVATE CUDA::cudart)
 
 # Librerias nativas de Windows
 if(MSVC)

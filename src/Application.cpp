@@ -2,7 +2,7 @@
 #include <iostream>
 
 Application::Application(int deviceIndex) 
-    : deviceIndex(deviceIndex), isRunning(false), enableAI(false), showMenu(true), appWindow("AI-Link Capture") {
+    : deviceIndex(deviceIndex), isRunning(false), enableAI(false), enableDenoise(false), showMenu(true), appWindow("AI-Link Capture") {
     devices = CaptureManager::getAvailableDevices();
 }
 
@@ -38,8 +38,8 @@ void Application::run() {
             showMenu = true; // Forzar menú visible
         }
 
-        // Post-proceso (IA o pass-through)
-        videoProcessor.processFrame(frame, processedFrame, enableAI && captureActive);
+        // Post-proceso: Denoise y/o Super Resolution
+        videoProcessor.processFrame(frame, processedFrame, enableAI && captureActive, enableDenoise && captureActive);
 
         // HUD OSD - Menu de selección
         if (showMenu) {
@@ -79,7 +79,17 @@ void Application::handleInput(bool& captureActive) {
     else if (key == 'm' || key == 'M') { // Menu de camaras
         showMenu = !showMenu;
     }
-    else if (key == 'f' || key == 'F') { // Tecla F - Toggle IA
+    else if (key == 'd' || key == 'D') { // Tecla D - Toggle Denoise
+        if (captureActive) {
+            if (!enableDenoise && !videoProcessor.isDenoiserReady()) {
+                std::cout << "Inicializando Denoise..." << std::endl;
+                videoProcessor.initDenoiser(capWidth, capHeight, 1.0f);
+            }
+            enableDenoise = !enableDenoise;
+            std::cout << "Denoise: " << (enableDenoise ? "ON (Reduccion de Ruido IA)" : "OFF") << std::endl;
+        }
+    }
+    else if (key == 'f' || key == 'F') { // Tecla F - Toggle Super Resolution
         if (captureActive) {
             if (!enableAI && !videoProcessor.isUpscalerReady()) {
                 // Primera vez: inicializar el upscaler 1080p -> 2K
@@ -98,7 +108,9 @@ void Application::handleInput(bool& captureActive) {
             captureManager.release();
             audioManager.stop();
             enableAI = false;
-            videoProcessor.releaseUpscaler(); 
+            enableDenoise = false;
+            videoProcessor.releaseUpscaler();
+            videoProcessor.releaseDenoiser();
             captureActive = captureManager.initialize(devices[deviceIndex].hwIndex, capWidth, capHeight);
             if (captureActive) audioManager.start();
         }
@@ -108,8 +120,10 @@ void Application::handleInput(bool& captureActive) {
         else if (srWidth == 1920) { srWidth = 3840; srHeight = 2160; } // 1080p -> 4K
         else { srWidth = 2560; srHeight = 1440; } // 4K -> 1440p
         
-        enableAI = false; // Reset AI so it re-initializes on next 'F' press
+        enableAI = false;
+        enableDenoise = false;
         videoProcessor.releaseUpscaler();
+        videoProcessor.releaseDenoiser();
         std::cout << "Objetivo IA seleccionado: " << srWidth << "x" << srHeight << std::endl;
     }
     else if (key == 'q' || key == 'Q') { // Cierre Seguro
@@ -132,8 +146,11 @@ void Application::switchDevice(int menuIndex, bool& captureActive) {
             std::cout << "Conectando dispositivo HW[" << hwIdx << "]: " << devices[menuIndex].name << std::endl;
             captureManager.release();
             audioManager.stop();
-            enableAI = false; // Resetear IA al cambiar de camara
+            enableAI = false;
+            enableDenoise = false;
             deviceIndex = menuIndex;
+            videoProcessor.releaseUpscaler();
+            videoProcessor.releaseDenoiser();
             captureActive = captureManager.initialize(hwIdx, capWidth, capHeight);
             if (captureActive) {
                 audioManager.start();
@@ -171,6 +188,8 @@ void Application::drawMenu(cv::Mat& frame) {
 
     int baseLine = 90 + devices.size() * 40 + 20;
     cv::putText(frame, "---------------------------------", cv::Point(40, baseLine), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2);
-    cv::putText(frame, "[R] Resolucion USB: " + std::to_string(capWidth) + "x" + std::to_string(capHeight) + " (Click 'R' para cambiar)", cv::Point(40, baseLine + 30), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 255), 2);
-    cv::putText(frame, "[S] Objetivo IA (Escalado): " + std::to_string(srWidth) + "x" + std::to_string(srHeight) + " (Click 'S' para cambiar)", cv::Point(40, baseLine + 60), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 165, 0), 2);
+    cv::putText(frame, "[R] Resolucion USB: " + std::to_string(capWidth) + "x" + std::to_string(capHeight) + " (R para cambiar)", cv::Point(40, baseLine + 30), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 255), 2);
+    cv::putText(frame, "[D] Denoise IA: " + std::string(enableDenoise ? "ON" : "OFF"), cv::Point(40, baseLine + 60), cv::FONT_HERSHEY_SIMPLEX, 0.6, enableDenoise ? cv::Scalar(0, 200, 255) : cv::Scalar(180, 180, 180), 2);
+    cv::putText(frame, "[F] Super Res IA: " + std::string(enableAI ? "ON (" + std::to_string(srWidth) + "x" + std::to_string(srHeight) + ")" : "OFF"), cv::Point(40, baseLine + 90), cv::FONT_HERSHEY_SIMPLEX, 0.6, enableAI ? cv::Scalar(0, 255, 100) : cv::Scalar(180, 180, 180), 2);
+    cv::putText(frame, "[S] Objetivo IA: " + std::to_string(srWidth) + "x" + std::to_string(srHeight) + " (S para cambiar)", cv::Point(40, baseLine + 120), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 165, 0), 2);
 }

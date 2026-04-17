@@ -3,6 +3,7 @@
 #include "nvVideoEffects.h"
 #include "nvCVImage.h"
 #include "nvVFXVideoSuperRes.h"
+#include <cuda_runtime.h>
 
 // Clase que encapsula NVIDIA VFX SDK para Super Resolucion en GPU
 // Escala 720p -> 1440p usando los Tensor Cores de la RTX 5070
@@ -23,6 +24,9 @@ public:
 
     // Escala un frame de entrada y devuelve el frame escalado
     bool upscale(const cv::Mat& input, cv::Mat& output);
+
+    // Toma el buffer directamente desde una red de la GPU (zero-copy de Input) -> Escala -> CPU
+    bool upscaleFromGPU(const NvCVImage* inputGpuBuf, cv::Mat& output);
 
     // Libera todos los recursos GPU
     void release();

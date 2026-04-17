@@ -7,6 +7,32 @@
 #include <vector>
 #include <string>
 
+// Win32 Menu IDs
+#define IDM_DEVICE_0 1000
+#define IDM_DEVICE_MAX 1010
+
+#define IDM_RES_1080 2000
+#define IDM_RES_720  2001
+#define IDM_FPS_60   2002
+#define IDM_FPS_30   2003
+#define IDM_MJPG_TOGGLE 2004
+
+#define IDM_DENOISE_TOGGLE 3000
+#define IDM_DENOISE_00 3001
+#define IDM_DENOISE_05 3002
+#define IDM_DENOISE_10 3003
+
+#define IDM_AA_TOGGLE 4000
+
+#define IDM_AI_TOGGLE 5000
+#define IDM_TARGET_1080 5001
+#define IDM_TARGET_1440 5002
+#define IDM_TARGET_2160 5003
+
+#define IDM_SAVE_CONFIG 6000
+
+#define IDM_TAKE_SCREENSHOT 7000
+
 class Application {
 public:
     Application(int deviceIndex);
@@ -15,13 +41,16 @@ public:
     // Inicia el bucle principal de la aplicación
     void run();
 
+    // Callback Nativo para Win32
+    void handleWin32Command(int menuId);
+
 private:
     int deviceIndex;
     bool isRunning;
-    bool enableAA; // Lanczos4 AA Independiente
+    bool enableAA; 
     bool enableAI;
-    bool enableDenoise; // Filtro de reduccion de ruido IA
-    bool showMenu; // Estado UI
+    bool enableDenoise; 
+    bool forceMjpg;
 
     int capWidth = 1920;
     int capHeight = 1080;
@@ -30,30 +59,21 @@ private:
     int srHeight = 2160;
     float denoiseStrength = 0.0f;
 
-    std::vector<DeviceInfo> devices; // Lista de capturadoras
+    std::vector<DeviceInfo> devices; 
 
     CaptureManager captureManager;
     VideoProcessor videoProcessor;
     AudioManager audioManager;
     AppWindow appWindow;
-
-    // --- UI Interactions ---
-    std::vector<cv::Rect> btnsDevices;
-    cv::Rect btnResToggle;
-    cv::Rect btnFpsToggle;
-    cv::Rect btnDenoiseToggle;
-    cv::Rect btnDenoiseStrength;
-    cv::Rect btnAAToggle;
-    cv::Rect btnAIToggle;
-    cv::Rect btnOutToggle;
-    cv::Rect btnSave;
     
     bool pendingCaptureRestart;
+    bool pendingAIInit;
+    bool pendingDenoiseInit;
+    bool pendingScreenshot;
 
     void handleInput(bool& captureActive);
-    void switchDevice(int newIndex, bool& captureActive);
-    void drawMenu(cv::Mat& frame);
     
-    static void onMouse(int event, int x, int y, int flags, void* userdata);
-    void handleMouse(int event, int x, int y, int flags);
+    // Win32 Menu Integration
+    void setupNativeMenu();
+    void updateMenuChecks();
 };

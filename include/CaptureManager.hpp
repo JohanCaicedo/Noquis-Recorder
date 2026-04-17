@@ -18,7 +18,7 @@ public:
     static std::vector<DeviceInfo> getAvailableDevices();
 
     // Inicia la captura desde un dispositivo especificado con una resolución dada.
-    bool initialize(int deviceIndex, int width = 1920, int height = 1080, int fps = 60);
+    bool initialize(int deviceIndex, int width = 1920, int height = 1080, int fps = 60, bool useMjpeg = true);
     
     // Obtiene el siguiente frame. Retorna false si el frame está vacío.
     bool getNextFrame(cv::Mat& outFrame);

@@ -8,7 +8,7 @@ CaptureManager::~CaptureManager() {
     release();
 }
 
-bool CaptureManager::initialize(int deviceIndex, int width, int height, int fps) {
+bool CaptureManager::initialize(int deviceIndex, int width, int height, int fps, bool useMjpeg) {
     // Ahora que recompilamos OpenCV con MSMF, esto funcionara perfecto.
     // Media Foundation respeta el FOURCC y no necesita Popups.
     cap.open(deviceIndex, cv::CAP_MSMF);
@@ -19,11 +19,14 @@ bool CaptureManager::initialize(int deviceIndex, int width, int height, int fps)
     }
 
     // ============================================================
-    // CONFIGURACION OPTIMIZADA PARA USB 2.0
+    // CONFIGURACION OPTIMIZADA PARA USB
     // ============================================================
     
-    // Forzamos MJPEG, ahora MSMF lo respetará automáticamente
-    cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
+    // Forzamos MJPEG si el usuario lo pide o por defecto para USB 2.0
+    if (useMjpeg) {
+        cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
+    }
+    
     cap.set(cv::CAP_PROP_FRAME_WIDTH, width);
     cap.set(cv::CAP_PROP_FRAME_HEIGHT, height);
     cap.set(cv::CAP_PROP_FPS, fps);
@@ -38,7 +41,7 @@ bool CaptureManager::initialize(int deviceIndex, int width, int height, int fps)
     double realFPS = cap.get(cv::CAP_PROP_FPS);
     std::cout << "Dispositivo " << deviceIndex 
               << " configurado: " << realWidth << "x" << realHeight 
-              << " @ " << realFPS << " FPS (MJPEG)" << std::endl;
+              << " @ " << realFPS << " FPS (" << (useMjpeg ? "MJPEG" : "Uncompressed") << ")" << std::endl;
 
     return true;
 }

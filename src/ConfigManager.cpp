@@ -36,6 +36,7 @@ AppConfig ConfigManager::loadConfig(const std::string& filepath) {
             else if (key == "enableDenoise") config.enableDenoise = (value == "1" || value == "true");
             else if (key == "enableAI") config.enableAI = (value == "1" || value == "true");
             else if (key == "enableAA") config.enableAA = (value == "1" || value == "true");
+            else if (key == "forceMjpg") config.forceMjpg = (value == "1" || value == "true");
         } catch (...) {
             std::cerr << "[Config] Error parseando valor para la llave: " << key << std::endl;
         }
@@ -60,4 +61,5 @@ void ConfigManager::saveConfig(const std::string& filepath, const AppConfig& con
     file << "enableDenoise=" << (config.enableDenoise ? "1" : "0") << "\n";
     file << "enableAI=" << (config.enableAI ? "1" : "0") << "\n";
     file << "enableAA=" << (config.enableAA ? "1" : "0") << "\n";
+    file << "forceMjpg=" << (config.forceMjpg ? "1" : "0") << "\n";
 }

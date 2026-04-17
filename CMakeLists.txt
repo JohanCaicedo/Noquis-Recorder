@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Remover flags manuales para evitar choque con Debug
 if(MSVC)
-    add_compile_options(/W4)
+    add_compile_options(/W4 /utf-8)
 else()
     add_compile_options(-Wall -Wextra)
 endif()
@@ -44,6 +44,7 @@ set(SOURCES
     src/GPUDenoiser.cpp
     src/AudioManager.cpp
     src/ConfigManager.cpp
+    resource.rc
     # Proxy files del VFX SDK (carga dinamica de DLLs)
     "${VFXSDK_ROOT}/nvvfx/src/nvVideoEffectsProxy.cpp"
     "${VFXSDK_ROOT}/nvvfx/src/nvCVImageProxy.cpp"

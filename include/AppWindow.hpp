@@ -13,6 +13,9 @@ public:
     // Alterna entre pantalla completa y modo ventana
     void toggleFullscreen();
     bool isWindowFullscreen() const { return isFullscreen; }
+    
+    // Devuelve el nombre identificador de la ventana de OpenCV
+    const std::string& getName() const { return name; }
 
     // Interceptar eventos de ratón
     void setMouseCallback(cv::MouseCallback onMouse, void* userdata);

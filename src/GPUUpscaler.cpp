@@ -200,6 +200,9 @@ bool GPUUpscaler::initialize(int srcWidth, int srcHeight, int dstWidth, int dstH
     // el SDK en cambio usa automaticamente g_nvVFXSDKPath que esta configurado.
 #endif
 
+    // Habilitar logs nativos del SDK para visualizar milisegundos de GPU
+    NvVFX_ConfigureLogger(NVCV_LOG_INFO, "nvvfx_upscaler.log", nullptr, nullptr);
+
     // 8. Cargar el modelo (esto tarda unos segundos la primera vez)
     std::cout << "[GPU] Cargando modelo de IA... (esto puede tardar unos segundos)" << std::endl;
     err = NvVFX_Load(effect);
@@ -251,7 +254,40 @@ bool GPUUpscaler::upscale(const cv::Mat& input, cv::Mat& output) {
         return false;
     }
 
+    cudaStreamSynchronize(stream);
     // Copiar resultado al output
+    dstImg.copyTo(output);
+    return true;
+}
+
+bool GPUUpscaler::upscaleFromGPU(const NvCVImage* inputGpuBuf, cv::Mat& output) {
+    if (!initialized || !effect || !inputGpuBuf) return false;
+
+    NvCV_Status err;
+
+    // En vez de transferir desde la CPU hacia la GPU, el marco (frame) ya se asienta 
+    // en la VRAM de la RTX 5070 (gracias al Denoiser). Hacemos un `Device-to-Device` copy!
+    err = NvCVImage_Transfer(inputGpuBuf, &srcGpuBuf, 1.0f, stream, nullptr);
+    if (err != NVCV_SUCCESS) {
+        std::cerr << "[GPU] Error transfer VRAM->VRAM: " << NvCV_GetErrorStringFromCode(err) << std::endl;
+        return false;
+    }
+
+    err = NvVFX_Run(effect, 0);
+    if (err != NVCV_SUCCESS) {
+        std::cerr << "[GPU] Error iterando NvVFX_Run (Upscaler): " << NvCV_GetErrorStringFromCode(err) << std::endl;
+        return false;
+    }
+
+    // Ahora recuperamos el re-escalado final descendiéndolo a la CPU/RAM para mostrar en pantalla
+    NVWrapperForCVMat(&dstImg, &dstVFX);
+    err = NvCVImage_Transfer(&dstGpuBuf, &dstVFX, 1.0f, stream, &dstTmpBuf);
+    if (err != NVCV_SUCCESS) {
+        std::cerr << "[GPU] Error transfer GPU->dst (Final): " << NvCV_GetErrorStringFromCode(err) << std::endl;
+        return false;
+    }
+
+    cudaStreamSynchronize(stream);
     dstImg.copyTo(output);
     return true;
 }

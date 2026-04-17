@@ -13,6 +13,7 @@ struct AppConfig {
     bool enableDenoise = false;
     bool enableAI = false;
     bool enableAA = false;
+    bool forceMjpg = true;
 };
 
 class ConfigManager {

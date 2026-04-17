@@ -14,13 +14,15 @@ bool VideoProcessor::initDenoiser(int width, int height, float strength) {
 }
 
 void VideoProcessor::processFrame(const cv::Mat& inputFrame, cv::Mat& outputFrame, bool enableAI, bool enableDenoise) {
-    // MODO: Denoise + Super Resolution (cadena: limpia -> escala)
+    // MODO: Denoise + Super Resolution (cadena directa VRAM-to-VRAM)
     if (enableDenoise && enableAI && denoiser.isReady() && upscaler.isReady()) {
-        if (!denoiser.denoise(inputFrame, denoisedTemp)) {
-            inputFrame.copyTo(denoisedTemp);
-        }
-        if (!upscaler.upscale(denoisedTemp, outputFrame)) {
-            denoisedTemp.copyTo(outputFrame);
+        if (denoiser.denoiseToGPU(inputFrame)) {
+            // Pasamos el puntero de la memoria gráfica directamente
+            if (!upscaler.upscaleFromGPU(denoiser.getOutputGPUBuffer(), outputFrame)) {
+                inputFrame.copyTo(outputFrame);
+            }
+        } else {
+            inputFrame.copyTo(outputFrame);
         }
         return;
     }

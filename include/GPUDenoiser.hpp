@@ -2,26 +2,33 @@
 #include <opencv2/opencv.hpp>
 #include "nvVideoEffects.h"
 #include "nvCVImage.h"
-#include "nvVFXDenoising.h"    // Define NVVFX_FX_DENOISING = "Denoising"
+#include "nvVFXVideoSuperRes.h"
 #include <cuda_runtime.h>
 
-// Encapsula NVIDIA VFX SDK DENOISING
-// Analiza multiples frames para eliminar ruido MJPEG/digital
+// Encapsula NVIDIA VFX SDK ARTIFACT REDUCTION (Modos de Denoise de VideoSuperRes)
+// Limpia macrobloques y ruido de compresion MJPEG sin usar historial temporal,
+// ideal para alta velocidad y juegos (evita ghosting).
 // La resolucion de salida es IDENTICA a la de entrada (no escala)
 class GPUDenoiser {
 public:
     GPUDenoiser();
     ~GPUDenoiser();
 
-    // Inicializa el efecto de Denoise
+    // Inicializa el efecto de Denoise (Artifact Reduction)
     // width/height: resolucion del video (entrada = salida)
-    // strength: 0.0 preserva mas textura, 1.0 elimina mas ruido
+    // strength: 0.0 preserva mas textura, 1.0 elimina mas ruido MJPEG
     bool initialize(int width, int height, float strength = 0.0f);
 
-    // Aplica denoise a un frame. Requiere que initialize() haya sido llamado
+    // Aplica denoise a un frame y transfiere de memoria GPU devuelta a CPU
     bool denoise(const cv::Mat& input, cv::Mat& output);
 
-    // Libera todos los recursos GPU (incluyendo State Variable)
+    // Aplica denoise y detiene el flujo en CUDA, manteniendo el frame en VRAM pura
+    bool denoiseToGPU(const cv::Mat& input);
+
+    // Devuelve el puntero hacia la memoria grafica VRAM del frame limpio
+    const NvCVImage* getOutputGPUBuffer() const { return &dstGpuBuf; }
+
+    // Libera todos los recursos GPU
     void release();
 
     // Verifica si el efecto esta listo para procesar
@@ -30,11 +37,6 @@ public:
 private:
     NvVFX_Handle effect;
     CUstream      stream;
-
-    // State Variable: "memoria" del GPU para analisis multi-frame
-    // El SDK acumula info de frames anteriores para distinguir ruido de detalle
-    void* stateBuffer;
-    unsigned int stateSize;
 
     NvCVImage srcGpuBuf;  // Buffer GPU de entrada (RGBA U8)
     NvCVImage dstGpuBuf;  // Buffer GPU de salida  (RGBA U8) - misma resolucion

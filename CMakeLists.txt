@@ -94,3 +94,13 @@ add_custom_command(TARGET AILinkCapture POST_BUILD
     COMMENT "Empaquetando NVIDIA Denoising Plugin..."
 )
 
+# ============================================================
+# EMPAQUETADO DE DEPENDENCIAS VCPKG (OPENCV DLLS)
+# ============================================================
+add_custom_command(TARGET AILinkCapture POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/bin"
+        "$<TARGET_FILE_DIR:AILinkCapture>"
+    COMMENT "Empaquetando dependencias de OpenCV (DLLs)..."
+)
+

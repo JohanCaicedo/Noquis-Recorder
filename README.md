@@ -17,6 +17,20 @@ Al abrir el programa, verás que tarda unos segundos en mostrar la imagen. **Est
 
 ---
 
+## 🍱 Comparativa de Calidad (IA)
+
+A continuación se muestra la efectividad del motor **NVIDIA RTX Artifact Reduction** integrado en el visor:
+
+| Sin Procesar (Solo MJPEG) | Con NVIDIA Denoise ACTIVO |
+| :---: | :---: |
+| ![Original](capturas/captura_20260417_163817.png) | ![Denoise Activo](capturas/captura_20260417_163616.png) |
+
+### Más resultados con Denoise (Filtro Alto):
+![Detalle 1](capturas/captura_20260417_165021.png)
+![Detalle 2](capturas/captura_20260417_165039.png)
+
+---
+
 ## 🛠️ Cómo Utilizar el Programa
 
 Para obtener la mejor experiencia, sigue este orden de configuración:

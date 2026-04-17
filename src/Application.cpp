@@ -63,6 +63,13 @@ void Application::setupNativeMenu() {
 
     g_hMenu = CreateMenu();
 
+    // 0. Set Window Icon (cargamos el icono incrustado en el .exe usando el ID string del .RC)
+    HICON hIcon = LoadIconA(GetModuleHandle(NULL), "IDI_ICON1");
+    if (hIcon) {
+        SendMessage(g_hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+        SendMessage(g_hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+    }
+
     // 1. Menu Dispositivos
     HMENU hMenuDevice = CreatePopupMenu();
     for (size_t i = 0; i < devices.size(); i++) {

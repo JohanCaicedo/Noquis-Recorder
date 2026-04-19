@@ -1,8 +1,7 @@
-# Gnocchi's Viewer
+# 😸 Gnocchi's Viewer
 
 > [!NOTE]
-> **Notas del diseñador:** Este es un programa creado por, como quien dice, un diseñador. Soy desarrollador web y diseñador web, pero el crear apps para Windows se sale de mis conocimientos; es por eso que la mayoría del código está hecho con *vibe coding*. Mi intención no es aparentar que soy desarrollador de Windows, sino compartir una herramienta que me parece interesante y necesaria si, como yo, tienes una tarjeta capturadora USB 2.0 y quieres una herramienta directa que intenta usar filtros para mejorar la imagen.
-
+> **Notas del diseñador:** Este es un programa creado por, como quien dice, un diseñador. Soy desarrollador web y diseñador web, pero el crear apps para Windows se sale de mis conocimientos. Por eso que la mayoría del código está hecho con *vibe coding*. Mi intención no es aparentar que soy desarrollador de Windows, sino compartir una herramienta que me parece interesante y necesaria si, como yo, tienes una tarjeta capturadora USB 2.0 y quieres una herramienta directa que intenta usar filtros para mejorar la imagen y con la minima latecia posible.
 
 Visor de capturadoras en C++ para Windows con enfoque en baja latencia, limpieza de artefactos y escalado por IA.
 

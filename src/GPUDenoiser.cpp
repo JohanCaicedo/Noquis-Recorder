@@ -10,21 +10,25 @@
 // Requerido por el proxy para localizar las DLLs del SDK
 extern char* g_nvVFXSDKPath;
 
-static std::string getProjectDir() {
+static std::string getExecutableDir() {
 #ifdef _WIN32
-    return CAPTURADORA_PROJECT_DIR;
-#else
-    return "";
+    char path[MAX_PATH];
+    GetModuleFileNameA(NULL, path, MAX_PATH);
+    std::string exePath(path);
+    size_t lastSlash = exePath.find_last_of("\\/");
+    if (lastSlash != std::string::npos) {
+        return exePath.substr(0, lastSlash);
+    }
 #endif
+    return "";
 }
 
 static std::string getSDKBinPath() {
-    return getProjectDir() + "\\NVIDIA Video Effects\\bin";
+    return getExecutableDir();
 }
 
 static std::string getSDKFeaturePath() {
-    // Usamos el bin de VideoSuperRes porque vamos a usar su efecto de Artifact Reduction
-    return getProjectDir() + "\\NVIDIA Video Effects\\features\\nvvfxvideosuperres\\bin";
+    return getExecutableDir();
 }
 
 GPUDenoiser::GPUDenoiser()

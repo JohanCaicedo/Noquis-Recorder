@@ -151,3 +151,20 @@ if(EXISTS "${OPTICAL_FLOW_SDK_ROOT}/NvOFFRUC/NvOFFRUCSample/bin/win64/cudart64_1
         COMMENT "Empaquetando runtime CUDA requerido por FRUC..."
     )
 endif()
+
+# ============================================================
+# EMPAQUETADO DE CONFIGURACION Y DOCUMENTACION
+# ============================================================
+add_custom_command(TARGET AILinkCapture POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/config.ini"
+        "$<TARGET_FILE_DIR:AILinkCapture>/config.ini"
+    COMMENT "Empaquetando archivo de configuracion (config.ini)..."
+)
+
+add_custom_command(TARGET AILinkCapture POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/README.md"
+        "$<TARGET_FILE_DIR:AILinkCapture>/README.md"
+    COMMENT "Empaquetando documentacion (README.md)..."
+)

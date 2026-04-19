@@ -34,28 +34,25 @@ static const char* getQualityModeName(int qualityMode) {
 }
 
 // Helper: construir la ruta absoluta del SDK relativo al .exe
-static std::string getProjectDir() {
+static std::string getExecutableDir() {
 #ifdef _WIN32
-    return CAPTURADORA_PROJECT_DIR;
-#else
-    return "";
+    char path[MAX_PATH];
+    GetModuleFileNameA(NULL, path, MAX_PATH);
+    std::string exePath(path);
+    size_t lastSlash = exePath.find_last_of("\\/");
+    if (lastSlash != std::string::npos) {
+        return exePath.substr(0, lastSlash);
+    }
 #endif
+    return "";
 }
 
 static std::string getSDKBinPath() {
-#ifdef _WIN32
-    return getProjectDir() + "\\NVIDIA Video Effects\\bin";
-#else
-    return "";
-#endif
+    return getExecutableDir();
 }
 
 static std::string getSDKFeaturePath() {
-#ifdef _WIN32
-    return getProjectDir() + "\\NVIDIA Video Effects\\features\\nvvfxvideosuperres\\bin";
-#else
-    return "";
-#endif
+    return getExecutableDir();
 }
 
 GPUUpscaler::GPUUpscaler() 

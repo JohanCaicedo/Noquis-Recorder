@@ -13,6 +13,21 @@ WNDPROC g_oldWndProc = nullptr;
 HWND g_hwnd = nullptr;
 HMENU g_hMenu = nullptr;
 
+std::string getExecutableDir() {
+    char path[MAX_PATH];
+    GetModuleFileNameA(NULL, path, MAX_PATH);
+    std::string exePath(path);
+    size_t lastSlash = exePath.find_last_of("\\/");
+    if (lastSlash != std::string::npos) {
+        return exePath.substr(0, lastSlash);
+    }
+    return ".";
+}
+
+std::string getConfigPath() {
+    return getExecutableDir() + "\\config.ini";
+}
+
 const char* getRTXQualityMenuLabel(int quality) {
     switch (quality) {
     case GPUUpscaler::kModeVsrBicubic: return "RTX Bicubic";
@@ -56,7 +71,7 @@ Application::Application(int deviceIndex)
       pendingCaptureRestart(false), pendingAIInit(false), pendingDenoiseInit(false), pendingScreenshot(false) {
     devices = CaptureManager::getAvailableDevices();
 
-    AppConfig cfg = ConfigManager::loadConfig("config.ini");
+    AppConfig cfg = ConfigManager::loadConfig(getConfigPath());
     if (cfg.loaded) {
         capWidth = cfg.capWidth;
         capHeight = cfg.capHeight;
@@ -448,8 +463,8 @@ void Application::handleWin32Command(int menuId) {
         cfg.showFpsViewer = showFpsViewer;
         cfg.enableAA = enableAA;
         cfg.forceMjpg = forceMjpg;
-        ConfigManager::saveConfig("config.ini", cfg);
-        std::cout << "Configuracion guardada en config.ini via Menu Nativo." << std::endl;
+        ConfigManager::saveConfig(getConfigPath(), cfg);
+        std::cout << "Configuracion guardada en " << getConfigPath() << " via Menu Nativo." << std::endl;
     } else if (menuId == IDM_TAKE_SCREENSHOT) {
         pendingScreenshot = true;
     } else if (menuId == IDM_FPS_VIEWER_TOGGLE) {
